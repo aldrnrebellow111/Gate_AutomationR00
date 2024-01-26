@@ -328,8 +328,8 @@ void ScanNewrecordHandler(CardDatabase *pRecData)
       if(StatusCh0)
       {
         /*Save new record*/
-        String strName = GetKeyBoard_cardName(pRecData->g_DataBase);
-        SaveNewRecord(GetAddressOfCardBuffer() , uRfidValCh0);
+//        String strName = GetKeyBoard_cardName(pRecData->g_DataBase);
+//        SaveNewRecord(GetAddressOfCardBuffer() , uRfidValCh0);
         PrintLcd("Record saved", 0 , 0 , true);
         delay(1000);
         return;

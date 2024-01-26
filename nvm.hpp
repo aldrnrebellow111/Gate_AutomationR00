@@ -25,11 +25,14 @@ typedef struct
   CardData g_DataBase[MAX_SIZE_CARD_SAVED];
 }CardDatabase;
 
+/*Log not required to save in device*/
+#if false
 typedef struct
 {
   uint32_t u32NoOfLogSaved;
   LogData  g_LogData[MAX_SIZE_LOG_SAVED];
 }LogDatabase;
+#endif
 
 void InitNVM(void);
 void SaveCardDetails(void);

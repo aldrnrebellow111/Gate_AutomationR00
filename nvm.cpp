@@ -3,7 +3,9 @@
 #include "nvm.hpp"
 
 CardDatabase m_CardDatabase;
+#if false/*Log not required to save in device*/
 LogDatabase  m_LogDatabase;
+#endif
 
 void InitNVM(void)
 {
