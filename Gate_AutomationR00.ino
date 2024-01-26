@@ -15,6 +15,7 @@ void setup()
   InitilizeWeigand((GetInstance_RfidCh0()) , PIN_WG_CH0_D0 , PIN_WG_CH0_D1);
   InitilizeWeigand((GetInstance_RfidCh1()) , PIN_WG_CH1_D0 , PIN_WG_CH1_D1);
   InitRfidApplication();
+  Serial.println("Init - done");
 }
 
 void loop() 

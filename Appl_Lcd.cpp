@@ -30,12 +30,16 @@ static e_ButtonState GetButtonState_Button(m_Button *pButton);
 static void DislayRec(uint32_t u32RecId, 
                 uint32_t u32TotalRecSaved, 
                 uint32_t u32CardId, String strCardName);
-static void ScanNewrecordHandler(CardDatabase *pRecData);
+static void ScanNewrecordHandler(Database *pRecData);
 static void DisplayRecordsMenu(void);
 static void DisplayMainMenu(void);
 static void DisplayMenu(const char *pItems , 
           uint32_t u32NoOfItems , uint8_t u8Selection);
-          
+static String GetKeyBoard_cardName(String VisData1);
+static void DeleteRecordHandler(stcCardData *pRecData);
+static void ResetAllHandler(void);
+static void DeleteAllRecordsHandler(void);
+
 void InitLcd(void)
 {
   // set up the LCD's number of columns and rows:
@@ -60,33 +64,47 @@ void PrintLcd(String strMsg,
 }
 e_ButtonState GetButtonState_Button(m_Button *pButton)
 {
-  e_ButtonState bState = enButton_off;
-  pButton->bCurrentState = digitalRead(pButton->u8PinNo);
-  if(HIGH == pButton->bCurrentState && 
-                HIGH == pButton->bPrevState)
+  static stcTimer m_ButtonTimer;
+  e_ButtonState bState = (enButton_off);
+  if(true == Timer_IsRunning(&m_ButtonTimer))
   {
-   /*ON*/ 
-   bState = (enButton_on);
+    if(true == Timer_IsTimeout(&m_ButtonTimer , enTimerNormalStop))
+    {
+      e_ButtonState bState = enButton_off;
+      pButton->bCurrentState = digitalRead(pButton->u8PinNo);
+      if(HIGH == pButton->bCurrentState && 
+                    HIGH == pButton->bPrevState)
+      {
+       /*ON*/
+       bState = (enButton_on);
+      }
+      else if(HIGH == pButton->bCurrentState && 
+                    LOW == pButton->bPrevState)
+      {
+        /*Rising edge*/
+        bState = (enButton_Released);
+      }
+      else if(LOW == pButton->bCurrentState && 
+                    HIGH == pButton->bPrevState)
+      {
+        /*Falling edge*/
+        bState = (enButton_Pressed);
+      }
+      else if(LOW == pButton->bCurrentState && 
+                    LOW == pButton->bPrevState)
+      {
+        /*OFF*/
+        bState = (enButton_off);
+      }
+      pButton->bPrevState = pButton->bCurrentState;
+      return bState;
+    }
   }
-  else if(HIGH == pButton->bCurrentState && 
-                LOW == pButton->bPrevState)
+  else
   {
-    /*Rising edge*/
-    bState = (enButton_Released);
+      InitilizeTimer(&m_ButtonTimer);
+      StartTimer(&m_ButtonTimer , (50)/*100 Ms*/);
   }
-  else if(LOW == pButton->bCurrentState && 
-                HIGH == pButton->bPrevState)
-  {
-    /*Falling edge*/
-    bState = (enButton_Pressed);
-  }
-  else if(LOW == pButton->bCurrentState && 
-                LOW == pButton->bPrevState)
-  {
-    /*OFF*/
-    bState = (enButton_off);
-  }
-  pButton->bPrevState = pButton->bCurrentState;
   return bState;
 }
 /*Scanning screen - start*/
@@ -97,12 +115,13 @@ void Display_ScanningInProgress(void)
   if(true == Timer_IsRunning(&m_ScanningTimer))
   {
     if(true == Timer_IsTimeout(&m_ScanningTimer , enTimerNormalStop))
-    {
+    { 
         PrintLcd(("Ready") , 7 , 0 , true);
         PrintLcd(("Menu") , 0 , 3 , false);
         if(bState)
         {
           PrintLcd(String("***Scanning***") , 3 , 1 , false);
+          Serial.println("***Scanning***");
           bState = false;
         }
         else
@@ -123,6 +142,7 @@ void Display_ScanningInProgress(void)
   {
     /*Call main menu*/
     DisplayMainMenu();
+    Serial.println("SCAN MENU -> MAIN MENU");
   }
   /*Main menu button handler call - end*/
 }
@@ -131,38 +151,37 @@ void Display_ScanningInProgress(void)
 void DisplayMainMenuOptions(int row)
 {
   PrintLcd(String(CONST_DATABASE), 2 , 0, true);
-  PrintLcd(("Export Records"), 2 , 1, false);
-  PrintLcd(("Set Time"), 2 , 2, false);
-  PrintLcd(("Set Gate Delay"), 2 , 3, false);
+  PrintLcd(("Set Gate Delay"), 2 , 1, false);
+  PrintLcd(("Delete database"), 2 , 2, false);
+  PrintLcd(("Reset All"), 2 , 3, false);
   PrintLcd("*", 0 , row, false);
 }
 void DisplayMainMenuOptions_2(int row)
 {
   PrintLcd(("Reset All"), 2 , 0, true);
-  PrintLcd(("Delete Logs"), 2 , 1, false);
   PrintLcd("*", 0 , row, false);
 }
 void DisplayMainMenu(void)
 {
   int8_t n8SelectedRow = 0;
-  int8_t n8MaxRow = 6;
+  int8_t n8MaxRow = 4;
   stcTimer m_Timer;
   InitilizeTimer(&m_Timer);
   StartTimer(&m_Timer , (LCD_DEFAULT_REFRESH_DELAY)/*100 Ms*/);
   while (true)
-  { 
+  {
     if(true == Timer_IsRunning(&m_Timer))
     {
       if(true == Timer_IsTimeout(&m_Timer , enTimerNormalStop))
       {
-        if(3 >= n8SelectedRow)
-        {
-          DisplayMainMenuOptions(n8SelectedRow);
-        }
-        else
-        {
-          DisplayMainMenuOptions_2(n8SelectedRow - LCD_MAX_ROW);
-        }
+          if(n8MaxRow >= n8SelectedRow)
+          {
+            DisplayMainMenuOptions(n8SelectedRow);
+          }
+          else
+          {
+            DisplayMainMenuOptions_2(n8SelectedRow - LCD_MAX_ROW);
+          }
       }
     }
     else
@@ -170,14 +189,17 @@ void DisplayMainMenu(void)
         InitilizeTimer(&m_Timer);
         StartTimer(&m_Timer , (LCD_DEFAULT_REFRESH_DELAY)/*100 Ms*/);
     }
-    
+
+
     if (enButton_Released == GetButtonState_Button(&g_ButtonRight))
     {
+      Serial.println(String("Menu->RIGHT BUTTON (NOP)"));
       /*NOP*/
     }
     
     if (enButton_Released == GetButtonState_Button(&g_ButtonCancel))
     {
+      Serial.println(String("Menu->Return"));
       return;/*Return to main screen*/
     }
     if (enButton_Released == GetButtonState_Button(&g_ButtonDown))
@@ -187,6 +209,7 @@ void DisplayMainMenu(void)
       {
         n8SelectedRow = 0;
       }
+      Serial.println(String("Menu->ROW : ") + String(n8SelectedRow));
     }
     if (enButton_Released == GetButtonState_Button(&g_ButtonOk))
     {
@@ -197,25 +220,19 @@ void DisplayMainMenu(void)
           Serial.println("Menu->Database");
           DisplayRecordsMenu();
         }break;/*Export Records*/
-        case 1:
-        {
-          Serial.println("Menu->Export record");
-        }break;
-        case 2:/*Set Time*/
-        {
-          Serial.println("Menu->Set time");
-        }break;
-        case 3:/*Set gate delay*/
+        case 1:/*Set gate delay*/
         {
           Serial.println("Menu->Set delay time");
         }break;
-        case 4:/*Reset All*/
+        case 2:/*Delete database*/
         {
-          Serial.println("Menu->Reset all");
+          DeleteAllRecordsHandler();
+          Serial.println("Menu->Delete databse");
         }break;
-        case 5:/*Delete Logs*/
+        case 3:/*Reset All*/
         {
-          Serial.println("Menu->Delete logs");
+          ResetAllHandler();
+          Serial.println("Menu->Reset all");
         }break;
       }
     }
@@ -230,16 +247,20 @@ void DislayRec(uint32_t u32RecId,
 {
   PrintLcd(String(u32RecId) + "/" + String(u32TotalRecSaved), 0 , 0, true);
   PrintLcd(strCardName, 0 , 1, false);
+  PrintLcd("Add", 0 , 3 , false);
+  PrintLcd("Back", 5 , 3 , false);
+  PrintLcd("Del", 11 , 3 , false);
   PrintLcd("Id : " + String(u32CardId) , 0 , 2, false);
 }
 void DisplayRecordsMenu(void)
 {
   int8_t n8SelectedRecNo = 0;
   stcTimer m_Timer;
-  ReadCardDetails();/*Read card record deatils*/
-  CardDatabase *pRecData = GetAddressOfCardBuffer();
+  ReadDatabseDetails();/*Read card record deatils*/
+  Database *pRecData = GetAddressOfDatabase();
   InitilizeTimer(&m_Timer);
   StartTimer(&m_Timer , (LCD_DEFAULT_REFRESH_DELAY)/*200 Ms*/);
+  pRecData->u32NoOfCardDataSaved = GetNumOfCardDetailsSaved();
   while (true)
   {
     /*If no data saved - start*/
@@ -247,12 +268,14 @@ void DisplayRecordsMenu(void)
     {
       PrintLcd("No " + String(CONST_DATABASE) + " Found", 0 , 0 , true);
       PrintLcd("Add", 0 , 3 , false);
+      PrintLcd("Back", 5 , 3 , false);
       while(true)
       {
           if (enButton_Released == 
             GetButtonState_Button(&g_ButtonCancel))
           {
             /*Call main menu*/
+            Serial.println("Window - Return");
             return;
           }
 
@@ -260,6 +283,7 @@ void DisplayRecordsMenu(void)
             GetButtonState_Button(&g_ButtonOk))
           {
             /*Scan new record*/
+            Serial.println("Window - ADD new record");
             ScanNewrecordHandler(pRecData);
             return;
           }
@@ -273,6 +297,7 @@ void DisplayRecordsMenu(void)
         DislayRec(n8SelectedRecNo , pRecData->u32NoOfCardDataSaved ,
               pRecData->g_DataBase[n8SelectedRecNo].u32CardId ,
               pRecData->g_DataBase[n8SelectedRecNo].arrName);
+        
       }
     }
     else
@@ -294,6 +319,8 @@ void DisplayRecordsMenu(void)
           GetButtonState_Button(&g_ButtonRight))
     {
       /*Delete current record*/
+      DeleteRecordHandler(&pRecData->g_DataBase[n8SelectedRecNo]);
+      pRecData->u32NoOfCardDataSaved = GetNumOfCardDetailsSaved();
     }
 
     if (enButton_Released == 
@@ -301,12 +328,46 @@ void DisplayRecordsMenu(void)
     {
       /*Scan new record*/
       ScanNewrecordHandler(pRecData);
+      pRecData->u32NoOfCardDataSaved = GetNumOfCardDetailsSaved();
+    }
+    if (enButton_Released == 
+      GetButtonState_Button(&g_ButtonCancel))
+    {
+      /*Call main menu*/
+      Serial.println("Window - Return");
+      return;
     }
   } //outside while
 }
+void DeleteRecordHandler(stcCardData *pRecData)
+{
+  PrintLcd(String("Delete Record?") , 0 , 0 , true);
+  PrintLcd(String(pRecData->arrName) , 0 , 1 , false);
+  PrintLcd(String(pRecData->u32CardId) , 0 , 2 , false);
+  PrintLcd(String("YES NO") , 0 , 3 , false);
+  while(true)
+  {
+    if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonOk))
+    {
+      pRecData->u32CardId = 0;
+      pRecData->bValidData = false;/*Delete record from database*/
+      Serial.println("Delete record - YES");
+      SaveDatabaseDetails();
+      return;
+    }
+
+    if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonCancel))
+    {
+      Serial.println("Delete record - NO");
+      return;
+    }
+  }
+}
 /*Records menu - end*/
 /*Scan new record menu - start*/
-void ScanNewrecordHandler(CardDatabase *pRecData)
+void ScanNewrecordHandler(Database *pRecData)
 {
     bool StatusCh0 = false;
     uint32_t uRfidValCh0 = 0;
@@ -314,6 +375,7 @@ void ScanNewrecordHandler(CardDatabase *pRecData)
     InitilizeTimer(&m_Timer);
     StartTimer(&m_Timer , (1000 * 10)/*10 Seconds*/);
     PrintLcd(String("Scanning new card") , 2 , 1 , true);
+    PrintLcd(String("Back") , 4 , 3 , false);
     while(true)
     {
       if(true == Timer_IsTimeout(&m_Timer , enTimerNormalStop))
@@ -324,24 +386,181 @@ void ScanNewrecordHandler(CardDatabase *pRecData)
         return;
         /*Return to record menu*/
       }
+      if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonCancel))
+      {
+        return;
+        /*Return to record menu*/
+      }
+
+      /*Saving new record only done in channel 0*/
       StatusCh0 = WeigandProcess((GetInstance_RfidCh0()) , &uRfidValCh0);
       if(StatusCh0)
       {
-        /*Save new record*/
-//        String strName = GetKeyBoard_cardName(pRecData->g_DataBase);
-//        SaveNewRecord(GetAddressOfCardBuffer() , uRfidValCh0);
-        PrintLcd("Record saved", 0 , 0 , true);
+        /*Check for existing record - start*/
+        for(uint32_t u32Idx = 0 ; 
+                u32Idx < MAX_SIZE_CARD_SAVED ; ++u32Idx)
+        {
+          if(true == pRecData->g_DataBase[u32Idx].bValidData &&
+                uRfidValCh0 == pRecData->g_DataBase[u32Idx].u32CardId)
+          {
+            PrintLcd(String("Duplicate Record"), 0 , 1 , true);
+            PrintLcd(String("Name :") + pRecData->g_DataBase[u32Idx].arrName, 0 , 2 , false);
+            PrintLcd(String("ID :") + String(uRfidValCh0), 0 , 3 , false);
+            Serial.println(String("Duplicate Record , Name : ")
+                    + pRecData->g_DataBase[u32Idx].arrName + String(" , ID : ") +
+                    String(uRfidValCh0));
+                    
+            delay(1000);
+            return;
+          }
+          /*Check for existing record - end*/
+        }
+        /*If new record then Save new record - start*/
+        String strName = GetKeyBoard_cardName(String(uRfidValCh0));
+        if(true == SaveNewRecord(strName , uRfidValCh0))/*New record - saved*/
+        {
+          PrintLcd(String("Saved Record"), 0 , 1 , true);
+          PrintLcd(String("Name :") + strName, 0 , 2 , false);
+          PrintLcd(String("ID :") + String(uRfidValCh0), 0 , 3 , false);
+          Serial.println(String("Record saved , Name : ")
+                    + strName + String(" , ID : ") +
+                    String(uRfidValCh0));
+        }
+        else/*Not saved - memory full*/
+        {
+          PrintLcd(String("ERROR - Memory full"), 0 , 1 , true);
+          Serial.println(String("Record saving failed (memroy full) , Name : ")
+                    + strName + String(" , ID : ") +
+                    String(uRfidValCh0));
+        }
         delay(1000);
         return;
+        /*If new record then Save new record - end*/
       }
     }
 }
-String GetKeyBoard_cardName(char *arr_cCurrentName)
+String GetKeyBoard_cardName(String VisData1)
 {
+  String StrBuffdata;
+  uint8_t u8Idx = 0;
+  char cAplhabet = '0';
   char strCardName[MAX_LENTH_CARD_NAME] = {0};
+  stcTimer m_KeyBoardTimer;
+  memset(strCardName , '_' , MAX_LENTH_CARD_NAME - 1);
+  PrintLcd(VisData1, 0 , 0 , true);
+  PrintLcd(String("Enter Name"), 0 , 1 , false);
   while(true)
   {
+    if(true == Timer_IsRunning(&m_KeyBoardTimer))
+    {
+      if(true == Timer_IsTimeout(&m_KeyBoardTimer , enTimerNormalStop))
+      {
+        PrintLcd(VisData1, 0 , 0 , true);
+        PrintLcd(String("Enter Name"), 0 , 1 , false);
+        PrintLcd(String(strCardName), 0 , 2 , false);
+        PrintLcd(String("^"), u8Idx , 3 , false);
+      }
+    }
+    else
+    {
+        InitilizeTimer(&m_KeyBoardTimer);
+        StartTimer(&m_KeyBoardTimer , (100)/*100 Ms*/);
+    }
+
+    if (enButton_Released == 
+      GetButtonState_Button(&g_ButtonCancel))
+    {
+      /*Call main menu*/
+      StrBuffdata = String("NO NAME");
+      Serial.println("Window - Return");
+      return StrBuffdata;
+    }
     
+    if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonDown))
+    {
+      cAplhabet++;
+      if('z' < cAplhabet)
+      {
+        cAplhabet = '0';/*Reset aphabet to zero*/
+      }
+      strCardName[u8Idx] = cAplhabet;
+      /*Increment alphabet*/
+    }
+
+    if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonRight))
+    {
+      u8Idx++;
+      if((MAX_LENTH_CARD_NAME - 1) <= u8Idx)
+      {
+        u8Idx = 0;/*Reset index to zero*/
+      }
+      /*Next char*/
+    }
+
+    if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonOk))
+    {
+       /*Save new record*/
+       for(uint8_t nI = 0 ; nI < MAX_LENTH_CARD_NAME; ++nI)
+       {
+          if('_' == strCardName[nI])
+          {
+            strCardName[nI] = '\0';/*Remove '-'*/
+          }
+       }
+       strCardName[MAX_LENTH_CARD_NAME - 1] = '\0';
+       StrBuffdata = String(strCardName);
+       return StrBuffdata;
+    }
   }
 }
 /*Scan new record menu - end*/
+void ResetAllHandler(void)
+{
+  PrintLcd(String("Reset all?") , 0 , 0 , true);
+  PrintLcd(String("YES NO") , 0 , 3 , false);
+  while(true)
+  {
+    if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonOk))
+    {
+      ResetAll();
+      Serial.println("Reset all - YES");
+      SaveDatabaseDetails();
+      return;
+    }
+
+    if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonCancel))
+    {
+      Serial.println("Reset all - NO");
+      return;
+    }
+  }
+}
+void DeleteAllRecordsHandler(void)
+{
+  PrintLcd(String("Delete all records?") , 0 , 0 , true);
+  PrintLcd(String("YES NO") , 0 , 3 , false);
+  while(true)
+  {
+    if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonOk))
+    {
+      DeleteAllRecords();
+      Serial.println("Delete all records - YES");
+      SaveDatabaseDetails();
+      return;
+    }
+
+    if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonCancel))
+    {
+      Serial.println("Delete all records - NO");
+      return;
+    }
+  }
+}

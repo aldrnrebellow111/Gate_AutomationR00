@@ -7,13 +7,13 @@
 
 void InitRfidApplication(void)
 {
-  ReadCardDetails();
+  ReadDatabseDetails();
 }
 void ProcessRfidData(uint32_t u32Ch0 , 
                       uint32_t u32Ch1 ,
                       bool EnCh0 , bool EnCh1)
 {
-  CardData *ptrCardData = NULL;
+  Database *ptrCardData = GetAddressOfDatabase();
   Relay *ptrRelay1 = GetInstance_Relay1();
   Relay *ptrRelay2 = GetInstance_Relay2();
   /*Search logic*/
@@ -22,23 +22,26 @@ void ProcessRfidData(uint32_t u32Ch0 ,
     for(uint32_t u32Idx = 0 ; 
                 u32Idx < MAX_SIZE_CARD_SAVED ; ++u32Idx)
     {
-        if(EnCh0)
-        {
-          if(u32Ch0 == ptrCardData->u32CardId)
+      if(true == ptrCardData->g_DataBase[u32Idx].bValidData)
+      {
+          if(EnCh0)
           {
-            /*Trigger Relay 1*/
-            TriggerRelay(ptrRelay1);
+            if(u32Ch0 == ptrCardData->g_DataBase[u32Idx].u32CardId)
+            {
+              /*Trigger Relay 1*/
+              TriggerRelay(ptrRelay1);
+            }
           }
-        }
-        
-        if(EnCh1)
-        {
-          if(u32Ch1 == ptrCardData->u32CardId)
+          
+          if(EnCh1)
           {
-            /*Trigger Relay 2*/
-            TriggerRelay(ptrRelay2);
+            if(u32Ch1 == ptrCardData->g_DataBase[u32Idx].u32CardId)
+            {
+              /*Trigger Relay 2*/
+              TriggerRelay(ptrRelay2);
+            }
           }
-        }
+      }
     }
   }
 }

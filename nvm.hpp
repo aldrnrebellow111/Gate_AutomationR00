@@ -4,39 +4,37 @@
 #define MAX_LENTH_CARD_NAME (16)
 #define MAX_SIZE_CARD_SAVED (500)
 #define MAX_SIZE_LOG_SAVED (500)
+#define INIT_SIGNATURE (0xAA)
+#define DEFAULT_RELAY_LAG_TIME (15)/*seconds*/
+#define DEFAULT_RELAY_PULSE_TIME (1)/*seconds*/
 
 typedef struct
 {
+  bool bValidData;
   uint32_t u32CardId;
   char arrName[MAX_LENTH_CARD_NAME];
-}CardData;
+} stcCardData;
 
 typedef struct
 {
-  uint32_t u32CardId;
-  uint32_t Date;
-  uint32_t Time;
-  char arrName[MAX_LENTH_CARD_NAME];
-}LogData;
+  uint32_t RelayLagTime;
+  uint32_t RelayPulseTime;
+} Settings;
 
 typedef struct
 {
+  uint32_t u32InitFlag;
   uint32_t u32NoOfCardDataSaved;
-  CardData g_DataBase[MAX_SIZE_CARD_SAVED];
-}CardDatabase;
-
-/*Log not required to save in device*/
-#if false
-typedef struct
-{
-  uint32_t u32NoOfLogSaved;
-  LogData  g_LogData[MAX_SIZE_LOG_SAVED];
-}LogDatabase;
-#endif
+  Settings m_Settings;
+  stcCardData g_DataBase[MAX_SIZE_CARD_SAVED];
+} Database;
 
 void InitNVM(void);
-void SaveCardDetails(void);
-CardDatabase* ReadCardDetails(void);
-CardDatabase* GetAddressOfCardBuffer(void);
-void SaveNewRecord(String strName , uint32_t u32CardId);
+void SaveDatabaseDetails(void);
+Database* ReadDatabseDetails(void);
+Database* GetAddressOfDatabase(void);
+void ResetAll(void);
+void DeleteAllRecords(void);
+uint32_t GetNumOfCardDetailsSaved(void);
+bool SaveNewRecord(String strName , uint32_t u32CardId);
 #endif
