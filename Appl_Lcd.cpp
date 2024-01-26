@@ -39,6 +39,7 @@ static String GetKeyBoard_cardName(String VisData1);
 static void DeleteRecordHandler(stcCardData *pRecData);
 static void ResetAllHandler(void);
 static void DeleteAllRecordsHandler(void);
+static void GateDelayHandler(void);
 
 void InitLcd(void)
 {
@@ -121,7 +122,6 @@ void Display_ScanningInProgress(void)
         if(bState)
         {
           PrintLcd(String("***Scanning***") , 3 , 1 , false);
-          Serial.println("***Scanning***");
           bState = false;
         }
         else
@@ -222,6 +222,7 @@ void DisplayMainMenu(void)
         }break;/*Export Records*/
         case 1:/*Set gate delay*/
         {
+          GateDelayHandler();
           Serial.println("Menu->Set delay time");
         }break;
         case 2:/*Delete database*/
@@ -250,6 +251,7 @@ void DislayRec(uint32_t u32RecId,
   PrintLcd("Add", 0 , 3 , false);
   PrintLcd("Back", 5 , 3 , false);
   PrintLcd("Del", 11 , 3 , false);
+  PrintLcd("^", 16 , 3 , false);
   PrintLcd("Id : " + String(u32CardId) , 0 , 2, false);
 }
 void DisplayRecordsMenu(void)
@@ -394,28 +396,25 @@ void ScanNewrecordHandler(Database *pRecData)
       }
 
       /*Saving new record only done in channel 0*/
-      StatusCh0 = WeigandProcess((GetInstance_RfidCh0()) , &uRfidValCh0);
+      StatusCh0 = WeigandProcess_A(&uRfidValCh0);
       if(StatusCh0)
       {
         /*Check for existing record - start*/
-        for(uint32_t u32Idx = 0 ; 
-                u32Idx < MAX_SIZE_CARD_SAVED ; ++u32Idx)
+        uint32_t u32RecIdx = 0;
+        if(true == checkForDuplicateCardData(uRfidValCh0 , &u32RecIdx))
         {
-          if(true == pRecData->g_DataBase[u32Idx].bValidData &&
-                uRfidValCh0 == pRecData->g_DataBase[u32Idx].u32CardId)
-          {
             PrintLcd(String("Duplicate Record"), 0 , 1 , true);
-            PrintLcd(String("Name :") + pRecData->g_DataBase[u32Idx].arrName, 0 , 2 , false);
+            PrintLcd(String("Name :") + pRecData->g_DataBase[u32RecIdx].arrName, 0 , 2 , false);
             PrintLcd(String("ID :") + String(uRfidValCh0), 0 , 3 , false);
             Serial.println(String("Duplicate Record , Name : ")
-                    + pRecData->g_DataBase[u32Idx].arrName + String(" , ID : ") +
+                    + pRecData->g_DataBase[u32RecIdx].arrName + String(" , ID : ") +
                     String(uRfidValCh0));
                     
             delay(1000);
             return;
-          }
-          /*Check for existing record - end*/
         }
+        /*Check for existing record - end*/
+        
         /*If new record then Save new record - start*/
         String strName = GetKeyBoard_cardName(String(uRfidValCh0));
         if(true == SaveNewRecord(strName , uRfidValCh0))/*New record - saved*/
@@ -562,5 +561,60 @@ void DeleteAllRecordsHandler(void)
       Serial.println("Delete all records - NO");
       return;
     }
+  }
+}
+void GateDelayHandler(void)
+{
+  stcTimer m_GateTimer;
+  Database *pRecData = GetAddressOfDatabase();
+  PrintLcd(String("Gate lag time(S) : ") , 0 , 0 , true);
+  PrintLcd(String(pRecData->m_Settings.RelayLagTime) , 0 , 1 , false);
+  PrintLcd("OK", 0 , 3 , false);
+  PrintLcd("Back", 5 , 3 , false);
+  PrintLcd("^", 16 , 3 , false);
+  while(true)
+  {
+    if(true == Timer_IsRunning(&m_GateTimer))
+    {
+      if(true == Timer_IsTimeout(&m_GateTimer , enTimerNormalStop))
+      {
+          PrintLcd(String("Gate lag time(S) : ") , 0 , 0 , true);
+          PrintLcd(String(pRecData->m_Settings.RelayLagTime) , 0 , 1 , false);
+          PrintLcd("OK", 0 , 3 , false);
+          PrintLcd("Back", 5 , 3 , false);
+          PrintLcd("^", 16 , 3 , false);
+      }
+    }
+    else
+    {
+        InitilizeTimer(&m_GateTimer);
+        StartTimer(&m_GateTimer , (100)/*100 Ms*/);
+    }
+
+      if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonOk))
+      {
+        SaveDatabaseDetails();
+        Serial.println("OK");
+        return;
+      }
+      if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonCancel))
+      {
+        Serial.println("Back");
+        return;
+      }
+      if (enButton_Released == 
+          GetButtonState_Button(&g_ButtonDown))
+      {
+        pRecData->m_Settings.RelayLagTime++;
+        if(MAX_RELAY_LAG_TIME <= pRecData->m_Settings.RelayLagTime)
+        {
+          pRecData->m_Settings.RelayLagTime = MIN_RELAY_LAG_TIME;
+        }
+        SaveDatabaseDetails();
+        Serial.println("Saved relay lag time");
+        /*Return to record menu*/
+      }
   }
 }

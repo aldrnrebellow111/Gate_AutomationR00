@@ -3,7 +3,7 @@
 #include "App.hpp"
 #include "nvm.hpp"
 #include "Drv_Relay.hpp"
-
+#include "JsonParser.hpp"
 
 void InitRfidApplication(void)
 {
@@ -28,8 +28,14 @@ void ProcessRfidData(uint32_t u32Ch0 ,
           {
             if(u32Ch0 == ptrCardData->g_DataBase[u32Idx].u32CardId)
             {
-              /*Trigger Relay 1*/
-              TriggerRelay(ptrRelay1);
+              if(true == ptrRelay1->RelayEnable)
+              {
+                /*Trigger Relay 1*/
+                TriggerRelay(ptrRelay1);
+                Serial.println("Trigger Relay 1");
+                SendCardLogToPc(1 ,String(ptrCardData->g_DataBase[u32Idx].u32CardId) ,
+                        String(ptrCardData->g_DataBase[u32Idx].arrName)); 
+              }
             }
           }
           
@@ -37,8 +43,14 @@ void ProcessRfidData(uint32_t u32Ch0 ,
           {
             if(u32Ch1 == ptrCardData->g_DataBase[u32Idx].u32CardId)
             {
-              /*Trigger Relay 2*/
-              TriggerRelay(ptrRelay2);
+              if(true == ptrRelay2->RelayEnable)
+              {
+                /*Trigger Relay 2*/
+                TriggerRelay(ptrRelay2);
+                Serial.println("Trigger Relay 2");
+                SendCardLogToPc(2 , String(ptrCardData->g_DataBase[u32Idx].u32CardId) ,
+                    String(ptrCardData->g_DataBase[u32Idx].arrName));
+              }
             }
           }
       }

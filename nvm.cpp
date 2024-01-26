@@ -36,6 +36,10 @@ Database* GetAddressOfDatabase(void)
 {
   return &m_NvmDatabase;
 }
+uint32_t GetRelaylagTime(void)
+{  
+  return m_NvmDatabase.m_Settings.RelayLagTime;
+}
 uint32_t GetNumOfCardDetailsSaved(void)
 {
   uint32_t NumOfCardData = 0;
@@ -72,6 +76,24 @@ void ResetAll(void)
   m_NvmDatabase.u32InitFlag = INIT_SIGNATURE;
   SaveDatabaseDetails();
   Serial.println("Reset all - completed");
+}
+bool checkForDuplicateCardData(uint32_t u32CardId , uint32_t *pIndex)
+{
+  bool bStatus = false;
+  for(uint32_t u32Idx = 0 ; 
+          u32Idx < MAX_SIZE_CARD_SAVED ; ++u32Idx)
+  {
+    if(true == m_NvmDatabase.g_DataBase[u32Idx].bValidData)/*If a vacant space is found*/
+    {
+      if(u32CardId == m_NvmDatabase.g_DataBase[u32Idx].u32CardId)
+      {
+        *pIndex = u32Idx;
+        bStatus = true;
+        break;
+      }
+    }
+  }
+  return bStatus;
 }
 bool SaveNewRecord(String strName , uint32_t u32CardId)
 {

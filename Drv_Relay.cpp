@@ -2,9 +2,7 @@
 #include "Appl_Timer.hpp"
 #include "Drv_Relay.hpp"
 #include "App.hpp"
-
-
-
+#include "nvm.hpp"
 
 Relay g_Relay1;
 Relay g_Relay2;
@@ -28,6 +26,8 @@ void TriggerRelay(Relay *ptrRelay)
   if(true == ptrRelay->RelayEnable)
   {
     ptrRelay->RelayState = true;
+    /*Disable Relay*/
+    ptrRelay->RelayEnable = false;
     digitalWrite(ptrRelay->u8Pin , ptrRelay->RelayState);
     StartTimer(&ptrRelay->m_Pulsetimer , 1000/*Milli second*/);
   }
@@ -42,9 +42,7 @@ void ProcessRelayPulse(Relay *ptrRelay)
     ptrRelay->RelayState = false;
     digitalWrite(ptrRelay->u8Pin , ptrRelay->RelayState);
     /*Start lag timer*/
-    StartTimer(&ptrRelay->m_Lagtimer , 3 * 1000/*Milli second*/);
-    /*Disable Relay*/
-    ptrRelay->RelayEnable = false;
+    StartTimer(&ptrRelay->m_Lagtimer , (1000 * GetRelaylagTime())/*Lag time Milli second*/);
   }
   /*Handler for pulse width timer - end*/
 

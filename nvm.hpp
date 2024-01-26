@@ -36,5 +36,7 @@ Database* GetAddressOfDatabase(void);
 void ResetAll(void);
 void DeleteAllRecords(void);
 uint32_t GetNumOfCardDetailsSaved(void);
+uint32_t GetRelaylagTime(void);
 bool SaveNewRecord(String strName , uint32_t u32CardId);
+bool checkForDuplicateCardData(uint32_t u32CardId , uint32_t *pIndex);
 #endif

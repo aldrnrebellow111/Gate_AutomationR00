@@ -4,6 +4,8 @@
 #define LCD_MAX_COL (20)
 #define LCD_MAX_ROW (4)
 #define LCD_DEFAULT_REFRESH_DELAY (500)/*Milliseconds*/
+#define MAX_RELAY_LAG_TIME (20)/*Seconds*/
+#define MIN_RELAY_LAG_TIME (3)/*Seconds*/
 
 typedef struct
 {
